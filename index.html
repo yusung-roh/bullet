@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bullet Dodge Game</title>
+  <style>
+    body {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: #111;
+      color: white;
+      font-family: sans-serif;
+      position: relative;
+    }
+    canvas {
+      background: #000;
+      border: 2px solid white;
+    }
+    #gameOverScreen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: rgba(0, 0, 0, 0.8);
+      padding: 20px;
+      border: 2px solid white;
+      border-radius: 10px;
+      text-align: center;
+    }
+    #scoreBoard {
+      margin: 10px;
+    }
+    #controls {
+      display: flex;
+      justify-content: center;
+      margin-top: 10px;
+    }
+    .control-button {
+      margin: 0 10px;
+      padding: 15px 20px;
+      font-size: 24px;
+      background: #333;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button {
+      margin: 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="scoreBoard">
+    <span id="score">Score: 0</span> | <span id="time">Time: 0s</span>
+  </div>
+  <canvas id="gameCanvas" width="400" height="600"></canvas>
+  <div id="controls">
+    <button class="control-button" onmousedown="startMove('left')" onmouseup="stopMove()" ontouchstart="startMove('left')" ontouchend="stopMove()">&larr;</button>
+    <button class="control-button" onmousedown="startMove('right')" onmouseup="stopMove()" ontouchstart="startMove('right')" ontouchend="stopMove()">&rarr;</button>
+  </div>
+  <div id="gameOverScreen">
+    <h2 id="gameOverText">Game Over</h2>
+    <button onclick="restartGame()">Restart</button>
+    <button onclick="endGame()">End</button>
+  </div>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const scoreDisplay = document.getElementById('score');
+    const timeDisplay = document.getElementById('time');
+    const gameOverText = document.getElementById('gameOverText');
+
+    let player = { x: 180, y: 550, width: 40, height: 40, speed: 5 };
+    let bullets = [];
+    let gameOver = false;
+    let score = 0;
+    let time = 0;
+    let scoreInterval, timeInterval;
+    let moveDirection = null;
+
+    function drawPlayer() {
+      ctx.fillStyle = 'lime';
+      ctx.fillRect(player.x, player.y, player.width, player.height);
+    }
+
+    function drawBullets() {
+      ctx.fillStyle = 'red';
+      bullets.forEach(b => ctx.fillRect(b.x, b.y, b.width, b.height));
+    }
+
+    function moveBullets() {
+      bullets.forEach(b => b.y += b.speed);
+      bullets = bullets.filter(b => b.y < canvas.height);
+    }
+
+    function spawnBullet() {
+      const x = Math.random() * (canvas.width - 10);
+      bullets.push({ x, y: 0, width: 10, height: 20, speed: 4 });
+      score += 1;
+      scoreDisplay.textContent = `Score: ${score}`;
+    }
+
+    function detectCollision() {
+      bullets.forEach(b => {
+        if (
+          b.x < player.x + player.width &&
+          b.x + b.width > player.x &&
+          b.y < player.y + player.height &&
+          b.y + b.height > player.y
+        ) {
+          gameOver = true;
+          clearInterval(scoreInterval);
+          clearInterval(timeInterval);
+          gameOverText.innerText = `Game Over!\nScore: ${score}\nTime: ${time}s`;
+          gameOverScreen.style.display = 'flex';
+        }
+      });
+    }
+
+    function clearCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function update() {
+      if (gameOver) return;
+      clearCanvas();
+      drawPlayer();
+      drawBullets();
+      moveBullets();
+      detectCollision();
+      if (moveDirection === 'left') moveLeft();
+      if (moveDirection === 'right') moveRight();
+      requestAnimationFrame(update);
+    }
+
+    function restartGame() {
+      player.x = 180;
+      bullets = [];
+      gameOver = false;
+      score = 0;
+      time = 0;
+      scoreDisplay.textContent = 'Score: 0';
+      timeDisplay.textContent = 'Time: 0s';
+      gameOverScreen.style.display = 'none';
+      startTimers();
+      update();
+    }
+
+    function endGame() {
+      gameOverScreen.innerHTML = '<h2>Thanks for playing!</h2>';
+    }
+
+    function movePlayer(e) {
+      if (e.key === 'ArrowLeft') moveDirection = 'left';
+      else if (e.key === 'ArrowRight') moveDirection = 'right';
+    }
+
+    function startMove(dir) {
+      moveDirection = dir;
+    }
+
+    function stopMove() {
+      moveDirection = null;
+    }
+
+    function moveLeft() {
+      if (player.x > 0) player.x -= player.speed;
+    }
+
+    function moveRight() {
+      if (player.x + player.width < canvas.width) player.x += player.speed;
+    }
+
+    function startTimers() {
+      scoreInterval = setInterval(() => { if (!gameOver) spawnBullet(); }, 800);
+      timeInterval = setInterval(() => {
+        if (!gameOver) {
+          time++;
+          timeDisplay.textContent = `Time: ${time}s`;
+        }
+      }, 1000);
+    }
+
+    document.addEventListener('keydown', movePlayer);
+    document.addEventListener('keyup', () => moveDirection = null);
+    startTimers();
+    update();
+  </script>
+</body>
+</html>
