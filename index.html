@@ -67,19 +67,22 @@
   </style>
 </head>
 <body>
+  <canvas id="gameCanvas" width="400" height="600"></canvas>
   <div id="scoreBoard">
     <span id="score">Score: 0</span> | <span id="time">Time: 0s</span>
   </div>
-  <canvas id="gameCanvas" width="400" height="600"></canvas>
+  <div style="margin-top: 10px; text-align: left; max-width: 400px; font-size: 14px; line-height: 1.5;">
+    <p>🛡️ <strong>파란색 총알</strong>을 먹으면 총알을 1회 버틸 수 있는 실드가 생깁니다.</p>
+    <p>⚡ 중간중간 <strong>빠른 주황색 총알</strong>도 나타납니다. 주의하세요!</p>
+  </div>
+  <button id="startButton">시작하기</button>
   <div id="controls">
     <div class="empty-cell"></div>
     <button class="control-button" onmousedown="startMove('up')" onmouseup="stopMove()" ontouchstart="startMove('up')" ontouchend="stopMove()">&uarr;</button>
     <div class="empty-cell"></div>
-
     <button class="control-button" onmousedown="startMove('left')" onmouseup="stopMove()" ontouchstart="startMove('left')" ontouchend="stopMove()">&larr;</button>
     <div class="empty-cell"></div>
     <button class="control-button" onmousedown="startMove('right')" onmouseup="stopMove()" ontouchstart="startMove('right')" ontouchend="stopMove()">&rarr;</button>
-
     <div class="empty-cell"></div>
     <button class="control-button" onmousedown="startMove('down')" onmouseup="stopMove()" ontouchstart="startMove('down')" ontouchend="stopMove()">&darr;</button>
     <div class="empty-cell"></div>
@@ -96,12 +99,14 @@
     const scoreDisplay = document.getElementById('score');
     const timeDisplay = document.getElementById('time');
     const gameOverText = document.getElementById('gameOverText');
+    const startButton = document.getElementById('startButton');
 
     let player = { x: canvas.width / 2 - 20, y: canvas.height / 2 - 20, width: 40, height: 40, speed: 5, shield: false };
     let bullets = [];
     let gameOver = false;
     let score = 0;
     let time = 0;
+    let bulletRate = 1;
     let scoreInterval, timeInterval, bulletInterval, shieldInterval, fastBulletInterval;
     let moveDirection = null;
 
@@ -215,9 +220,11 @@
       gameOver = false;
       score = 0;
       time = 0;
+      bulletRate = 1;
       scoreDisplay.textContent = 'Score: 0';
       timeDisplay.textContent = 'Time: 0s';
       gameOverScreen.style.display = 'none';
+      startButton.style.display = 'none';
       startTimers();
       update();
     }
@@ -260,8 +267,10 @@
     function startTimers() {
       bulletInterval = setInterval(() => {
         const dirs = ['top', 'bottom', 'left', 'right'];
-        const dir = dirs[Math.floor(Math.random() * dirs.length)];
-        spawnBullet(dir);
+        for (let i = 0; i < bulletRate; i++) {
+          const dir = dirs[Math.floor(Math.random() * dirs.length)];
+          spawnBullet(dir);
+        }
       }, 800);
       shieldInterval = setInterval(spawnShield, 25000);
       fastBulletInterval = setInterval(spawnFastBullet, 7000);
@@ -270,14 +279,19 @@
         if (!gameOver) {
           time++;
           timeDisplay.textContent = `Time: ${time}s`;
+          if (time % 10 === 0) bulletRate++;
         }
       }, 1000);
     }
 
+    startButton.addEventListener('click', () => {
+      startButton.style.display = 'none';
+      startTimers();
+      update();
+    });
+
     document.addEventListener('keydown', movePlayer);
     document.addEventListener('keyup', () => moveDirection = null);
-    startTimers();
-    update();
   </script>
 </body>
 </html>
