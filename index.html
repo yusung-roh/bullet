@@ -40,12 +40,12 @@
       margin: 10px;
     }
     #controls {
-      display: flex;
-      justify-content: center;
+      display: grid;
+      grid-template-columns: repeat(3, auto);
+      gap: 5px;
       margin-top: 10px;
     }
     .control-button {
-      margin: 0 10px;
       padding: 15px 20px;
       font-size: 24px;
       background: #333;
@@ -53,6 +53,10 @@
       border: none;
       border-radius: 8px;
       cursor: pointer;
+      min-width: 60px;
+    }
+    .empty-cell {
+      visibility: hidden;
     }
     button {
       margin: 10px;
@@ -68,8 +72,17 @@
   </div>
   <canvas id="gameCanvas" width="400" height="600"></canvas>
   <div id="controls">
+    <div class="empty-cell"></div>
+    <button class="control-button" onmousedown="startMove('up')" onmouseup="stopMove()" ontouchstart="startMove('up')" ontouchend="stopMove()">&uarr;</button>
+    <div class="empty-cell"></div>
+
     <button class="control-button" onmousedown="startMove('left')" onmouseup="stopMove()" ontouchstart="startMove('left')" ontouchend="stopMove()">&larr;</button>
+    <div class="empty-cell"></div>
     <button class="control-button" onmousedown="startMove('right')" onmouseup="stopMove()" ontouchstart="startMove('right')" ontouchend="stopMove()">&rarr;</button>
+
+    <div class="empty-cell"></div>
+    <button class="control-button" onmousedown="startMove('down')" onmouseup="stopMove()" ontouchstart="startMove('down')" ontouchend="stopMove()">&darr;</button>
+    <div class="empty-cell"></div>
   </div>
   <div id="gameOverScreen">
     <h2 id="gameOverText">Game Over</h2>
@@ -84,49 +97,94 @@
     const timeDisplay = document.getElementById('time');
     const gameOverText = document.getElementById('gameOverText');
 
-    let player = { x: 180, y: 550, width: 40, height: 40, speed: 5 };
+    let player = { x: canvas.width / 2 - 20, y: canvas.height / 2 - 20, width: 40, height: 40, speed: 5, shield: false };
     let bullets = [];
     let gameOver = false;
     let score = 0;
     let time = 0;
-    let scoreInterval, timeInterval;
+    let scoreInterval, timeInterval, bulletInterval, shieldInterval, fastBulletInterval;
     let moveDirection = null;
 
     function drawPlayer() {
-      ctx.fillStyle = 'lime';
+      ctx.fillStyle = player.shield ? 'cyan' : 'lime';
       ctx.fillRect(player.x, player.y, player.width, player.height);
     }
 
     function drawBullets() {
-      ctx.fillStyle = 'red';
-      bullets.forEach(b => ctx.fillRect(b.x, b.y, b.width, b.height));
+      bullets.forEach(b => {
+        ctx.fillStyle = b.color;
+        ctx.fillRect(b.x, b.y, b.width, b.height);
+      });
     }
 
     function moveBullets() {
-      bullets.forEach(b => b.y += b.speed);
-      bullets = bullets.filter(b => b.y < canvas.height);
+      bullets.forEach(b => {
+        b.x += b.dx;
+        b.y += b.dy;
+      });
+      bullets = bullets.filter(b => b.x + b.width > 0 && b.x < canvas.width && b.y + b.height > 0 && b.y < canvas.height);
     }
 
-    function spawnBullet() {
-      const x = Math.random() * (canvas.width - 10);
-      bullets.push({ x, y: 0, width: 10, height: 20, speed: 4 });
+    function spawnBullet(direction = 'top', speed = 4, color = 'red') {
+      let x = 0, y = 0, dx = 0, dy = 0;
+      const size = 10;
+      if (direction === 'top') {
+        x = Math.random() * (canvas.width - size);
+        y = -size;
+        dy = speed;
+      } else if (direction === 'bottom') {
+        x = Math.random() * (canvas.width - size);
+        y = canvas.height;
+        dy = -speed;
+      } else if (direction === 'left') {
+        x = -size;
+        y = Math.random() * (canvas.height - size);
+        dx = speed;
+      } else if (direction === 'right') {
+        x = canvas.width;
+        y = Math.random() * (canvas.height - size);
+        dx = -speed;
+      }
+      bullets.push({ x, y, dx, dy, width: size, height: size, color });
       score += 1;
       scoreDisplay.textContent = `Score: ${score}`;
     }
 
+    function spawnShield() {
+      spawnBullet('top', 2, 'cyan');
+      bullets[bullets.length - 1].isShield = true;
+    }
+
+    function spawnFastBullet() {
+      const dirs = ['top', 'bottom', 'left', 'right'];
+      const dir = dirs[Math.floor(Math.random() * dirs.length)];
+      spawnBullet(dir, 8, 'orange');
+    }
+
     function detectCollision() {
-      bullets.forEach(b => {
+      bullets.forEach((b, i) => {
         if (
           b.x < player.x + player.width &&
           b.x + b.width > player.x &&
           b.y < player.y + player.height &&
           b.y + b.height > player.y
         ) {
-          gameOver = true;
-          clearInterval(scoreInterval);
-          clearInterval(timeInterval);
-          gameOverText.innerText = `Game Over!\nScore: ${score}\nTime: ${time}s`;
-          gameOverScreen.style.display = 'flex';
+          if (b.isShield) {
+            player.shield = true;
+            bullets.splice(i, 1);
+          } else if (player.shield) {
+            player.shield = false;
+            bullets.splice(i, 1);
+          } else {
+            gameOver = true;
+            clearInterval(scoreInterval);
+            clearInterval(timeInterval);
+            clearInterval(bulletInterval);
+            clearInterval(shieldInterval);
+            clearInterval(fastBulletInterval);
+            gameOverText.innerText = `Game Over!\nScore: ${score}\nTime: ${time}s`;
+            gameOverScreen.style.display = 'flex';
+          }
         }
       });
     }
@@ -144,11 +202,15 @@
       detectCollision();
       if (moveDirection === 'left') moveLeft();
       if (moveDirection === 'right') moveRight();
+      if (moveDirection === 'up') moveUp();
+      if (moveDirection === 'down') moveDown();
       requestAnimationFrame(update);
     }
 
     function restartGame() {
-      player.x = 180;
+      player.x = canvas.width / 2 - 20;
+      player.y = canvas.height / 2 - 20;
+      player.shield = false;
       bullets = [];
       gameOver = false;
       score = 0;
@@ -167,6 +229,8 @@
     function movePlayer(e) {
       if (e.key === 'ArrowLeft') moveDirection = 'left';
       else if (e.key === 'ArrowRight') moveDirection = 'right';
+      else if (e.key === 'ArrowUp') moveDirection = 'up';
+      else if (e.key === 'ArrowDown') moveDirection = 'down';
     }
 
     function startMove(dir) {
@@ -185,8 +249,23 @@
       if (player.x + player.width < canvas.width) player.x += player.speed;
     }
 
+    function moveUp() {
+      if (player.y > 0) player.y -= player.speed;
+    }
+
+    function moveDown() {
+      if (player.y + player.height < canvas.height) player.y += player.speed;
+    }
+
     function startTimers() {
-      scoreInterval = setInterval(() => { if (!gameOver) spawnBullet(); }, 800);
+      bulletInterval = setInterval(() => {
+        const dirs = ['top', 'bottom', 'left', 'right'];
+        const dir = dirs[Math.floor(Math.random() * dirs.length)];
+        spawnBullet(dir);
+      }, 800);
+      shieldInterval = setInterval(spawnShield, 25000);
+      fastBulletInterval = setInterval(spawnFastBullet, 7000);
+      scoreInterval = setInterval(() => { if (!gameOver) scoreDisplay.textContent = `Score: ${score}`; }, 1000);
       timeInterval = setInterval(() => {
         if (!gameOver) {
           time++;
