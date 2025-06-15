@@ -10,7 +10,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start;
       height: 100vh;
       background: #111;
       color: white;
@@ -20,6 +20,7 @@
     canvas {
       background: #000;
       border: 2px solid white;
+      margin-top: 10px;
     }
     #gameOverScreen {
       display: none;
@@ -38,25 +39,11 @@
     }
     #scoreBoard {
       margin: 10px;
+      font-size: 18px;
     }
-    #controls {
-      display: grid;
-      grid-template-columns: repeat(3, auto);
-      gap: 5px;
-      margin-top: 10px;
-    }
-    .control-button {
-      padding: 15px 20px;
-      font-size: 24px;
-      background: #333;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      min-width: 60px;
-    }
-    .empty-cell {
-      visibility: hidden;
+    #healthUI {
+      margin-top: 5px;
+      font-size: 20px;
     }
     button {
       margin: 10px;
@@ -67,25 +54,19 @@
   </style>
 </head>
 <body>
-  <canvas id="gameCanvas" width="400" height="600"></canvas>
   <div id="scoreBoard">
     <span id="score">Score: 0</span> | <span id="time">Time: 0s</span>
   </div>
-  <div style="margin-top: 10px; text-align: left; max-width: 400px; font-size: 14px; line-height: 1.5;">
-    <p>🛡️ <strong>파란색 총알</strong>을 먹으면 총알을 1회 버틸 수 있는 실드가 생깁니다.</p>
-    <p>⚡ 중간중간 <strong>빠른 주황색 총알</strong>도 나타납니다. 주의하세요!</p>
-  </div>
-  <button id="startButton">시작하기</button>
-  <div id="controls">
-    <div class="empty-cell"></div>
-    <button class="control-button" onmousedown="startMove('up')" onmouseup="stopMove()" ontouchstart="startMove('up')" ontouchend="stopMove()">&uarr;</button>
-    <div class="empty-cell"></div>
-    <button class="control-button" onmousedown="startMove('left')" onmouseup="stopMove()" ontouchstart="startMove('left')" ontouchend="stopMove()">&larr;</button>
-    <div class="empty-cell"></div>
-    <button class="control-button" onmousedown="startMove('right')" onmouseup="stopMove()" ontouchstart="startMove('right')" ontouchend="stopMove()">&rarr;</button>
-    <div class="empty-cell"></div>
-    <button class="control-button" onmousedown="startMove('down')" onmouseup="stopMove()" ontouchstart="startMove('down')" ontouchend="stopMove()">&darr;</button>
-    <div class="empty-cell"></div>
+  <div id="healthUI">❤️❤️❤️</div>
+  <canvas id="gameCanvas" width="400" height="600"></canvas>
+  <div id="introScreen" style="position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;">
+    <h2>게임 설명</h2>
+    <p>총알은 모든 방향에서 날아옵니다.</p>
+    <p>10초마다 큰 총알이 등장합니다.</p>
+    <p>15초마다 등장하는 파란 총알에 맞으면 3초간 속도가 느려집니다.</p>
+    <p>20초마다 빠른 총알이 등장합니다.</p>
+    <p>총알을 3번 맞으면 게임 오버입니다. ❤️ 3개로 시작합니다.</p>
+    <button onclick="startGame()">게임 시작</button>
   </div>
   <div id="gameOverScreen">
     <h2 id="gameOverText">Game Over</h2>
@@ -99,96 +80,112 @@
     const scoreDisplay = document.getElementById('score');
     const timeDisplay = document.getElementById('time');
     const gameOverText = document.getElementById('gameOverText');
-    const startButton = document.getElementById('startButton');
+    const healthUI = document.getElementById('healthUI');
 
-    let player = { x: canvas.width / 2 - 20, y: canvas.height / 2 - 20, width: 40, height: 40, speed: 5, shield: false };
+    let player = { x: canvas.width / 2 - 10, y: canvas.height / 2 - 10, width: 20, height: 20, speed: 5 };
     let bullets = [];
+    let health = 3;
+    let slowEffect = false;
     let gameOver = false;
     let score = 0;
     let time = 0;
-    let bulletRate = 1;
-    let scoreInterval, timeInterval, bulletInterval, shieldInterval, fastBulletInterval;
+    let scoreInterval, timeInterval;
     let moveDirection = null;
+    let keysPressed = { left: false, right: false, up: false, down: false };
+
+    function updateHealthUI() {
+      const hearts = ['🤍', '🤍', '🤍'];
+      for (let i = 0; i < health; i++) hearts[i] = '❤️';
+      healthUI.textContent = hearts.join('');
+    }
+
+    function updateMoveDirection() {
+      if (keysPressed.left && keysPressed.up) moveDirection = 'upleft';
+      else if (keysPressed.right && keysPressed.up) moveDirection = 'upright';
+      else if (keysPressed.left && keysPressed.down) moveDirection = 'downleft';
+      else if (keysPressed.right && keysPressed.down) moveDirection = 'downright';
+      else if (keysPressed.left) moveDirection = 'left';
+      else if (keysPressed.right) moveDirection = 'right';
+      else if (keysPressed.up) moveDirection = 'up';
+      else if (keysPressed.down) moveDirection = 'down';
+      else moveDirection = null;
+    }
 
     function drawPlayer() {
-      ctx.fillStyle = player.shield ? 'cyan' : 'lime';
-      ctx.fillRect(player.x, player.y, player.width, player.height);
+      ctx.save();
+      ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        ctx.lineTo(
+          Math.cos((18 + i * 72) * Math.PI / 180) * 10,
+          Math.sin((18 + i * 72) * Math.PI / 180) * 10
+        );
+        ctx.lineTo(
+          Math.cos((54 + i * 72) * Math.PI / 180) * 4,
+          Math.sin((54 + i * 72) * Math.PI / 180) * 4
+        );
+      }
+      ctx.closePath();
+      ctx.fillStyle = 'yellow';
+      ctx.fill();
+      ctx.restore();
     }
 
     function drawBullets() {
       bullets.forEach(b => {
-        ctx.fillStyle = b.color;
+        if (b.type === 'slow') ctx.fillStyle = 'blue';
+        else if (b.type === 'big') ctx.fillStyle = 'orange';
+        else if (b.type === 'fast') ctx.fillStyle = 'lightgreen';
+        else ctx.fillStyle = 'red';
         ctx.fillRect(b.x, b.y, b.width, b.height);
       });
     }
 
     function moveBullets() {
       bullets.forEach(b => {
-        b.x += b.dx;
-        b.y += b.dy;
+        b.x += b.dx * b.speed;
+        b.y += b.dy * b.speed;
       });
-      bullets = bullets.filter(b => b.x + b.width > 0 && b.x < canvas.width && b.y + b.height > 0 && b.y < canvas.height);
+      bullets = bullets.filter(b => b.x >= -20 && b.x <= canvas.width + 20 && b.y >= -20 && b.y <= canvas.height + 20);
     }
 
-    function spawnBullet(direction = 'top', speed = 4, color = 'red') {
-      let x = 0, y = 0, dx = 0, dy = 0;
-      const size = 10;
-      if (direction === 'top') {
-        x = Math.random() * (canvas.width - size);
-        y = -size;
-        dy = speed;
-      } else if (direction === 'bottom') {
-        x = Math.random() * (canvas.width - size);
-        y = canvas.height;
-        dy = -speed;
-      } else if (direction === 'left') {
-        x = -size;
-        y = Math.random() * (canvas.height - size);
-        dx = speed;
-      } else if (direction === 'right') {
-        x = canvas.width;
-        y = Math.random() * (canvas.height - size);
-        dx = -speed;
-      }
-      bullets.push({ x, y, dx, dy, width: size, height: size, color });
-      score += 1;
+    function spawnBullet() {
+      const direction = Math.floor(Math.random() * 4);
+      let b = { x: 0, y: 0, width: 10, height: 10, speed: 4, dx: 0, dy: 0, type: 'normal' };
+      if (direction === 0) { b.x = Math.random() * canvas.width; b.y = 0; b.dy = 1; }
+      if (direction === 1) { b.x = canvas.width; b.y = Math.random() * canvas.height; b.dx = -1; }
+      if (direction === 2) { b.x = Math.random() * canvas.width; b.y = canvas.height; b.dy = -1; }
+      if (direction === 3) { b.x = 0; b.y = Math.random() * canvas.height; b.dx = 1; }
+      bullets.push(b);
+      score++;
       scoreDisplay.textContent = `Score: ${score}`;
     }
 
-    function spawnShield() {
-      spawnBullet('top', 2, 'cyan');
-      bullets[bullets.length - 1].isShield = true;
-    }
-
-    function spawnFastBullet() {
-      const dirs = ['top', 'bottom', 'left', 'right'];
-      const dir = dirs[Math.floor(Math.random() * dirs.length)];
-      spawnBullet(dir, 8, 'orange');
-    }
-
     function detectCollision() {
-      bullets.forEach((b, i) => {
+      bullets.forEach(b => {
         if (
           b.x < player.x + player.width &&
           b.x + b.width > player.x &&
           b.y < player.y + player.height &&
           b.y + b.height > player.y
         ) {
-          if (b.isShield) {
-            player.shield = true;
-            bullets.splice(i, 1);
-          } else if (player.shield) {
-            player.shield = false;
-            bullets.splice(i, 1);
+          if (b.type === 'slow') {
+            if (!slowEffect) {
+              slowEffect = true;
+              player.speed /= 3;
+              setTimeout(() => { player.speed *= 3; slowEffect = false; }, 3000);
+            }
           } else {
-            gameOver = true;
-            clearInterval(scoreInterval);
-            clearInterval(timeInterval);
-            clearInterval(bulletInterval);
-            clearInterval(shieldInterval);
-            clearInterval(fastBulletInterval);
-            gameOverText.innerText = `Game Over!\nScore: ${score}\nTime: ${time}s`;
-            gameOverScreen.style.display = 'flex';
+            bullets = bullets.filter(bul => bul !== b);
+            health--;
+            updateHealthUI();
+            if (health <= 0) {
+              gameOver = true;
+              clearInterval(scoreInterval);
+              clearInterval(timeInterval);
+              gameOverText.innerText = `Game Over!\nScore: ${score}\nTime: ${time}s`;
+              gameOverScreen.style.display = 'flex';
+            }
           }
         }
       });
@@ -205,93 +202,89 @@
       drawBullets();
       moveBullets();
       detectCollision();
-      if (moveDirection === 'left') moveLeft();
-      if (moveDirection === 'right') moveRight();
-      if (moveDirection === 'up') moveUp();
-      if (moveDirection === 'down') moveDown();
+      switch (moveDirection) {
+        case 'left': moveLeft(); break;
+        case 'right': moveRight(); break;
+        case 'up': moveUp(); break;
+        case 'down': moveDown(); break;
+        case 'upleft': moveLeft(); moveUp(); break;
+        case 'upright': moveRight(); moveUp(); break;
+        case 'downleft': moveLeft(); moveDown(); break;
+        case 'downright': moveRight(); moveDown(); break;
+      }
       requestAnimationFrame(update);
     }
 
     function restartGame() {
-      player.x = canvas.width / 2 - 20;
-      player.y = canvas.height / 2 - 20;
-      player.shield = false;
+      player.x = canvas.width / 2 - 10;
+      player.y = canvas.height / 2 - 10;
       bullets = [];
       gameOver = false;
+      health = 3;
+      updateHealthUI();
       score = 0;
       time = 0;
-      bulletRate = 1;
       scoreDisplay.textContent = 'Score: 0';
       timeDisplay.textContent = 'Time: 0s';
       gameOverScreen.style.display = 'none';
-      startButton.style.display = 'none';
-      startTimers();
-      update();
+      // 게임 설명 화면이 닫히고 나면 시작되도록 변경
     }
 
     function endGame() {
       gameOverScreen.innerHTML = '<h2>Thanks for playing!</h2>';
     }
 
-    function movePlayer(e) {
-      if (e.key === 'ArrowLeft') moveDirection = 'left';
-      else if (e.key === 'ArrowRight') moveDirection = 'right';
-      else if (e.key === 'ArrowUp') moveDirection = 'up';
-      else if (e.key === 'ArrowDown') moveDirection = 'down';
-    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') keysPressed.left = true;
+      if (e.key === 'ArrowRight') keysPressed.right = true;
+      if (e.key === 'ArrowUp') keysPressed.up = true;
+      if (e.key === 'ArrowDown') keysPressed.down = true;
+      updateMoveDirection();
+    });
 
-    function startMove(dir) {
-      moveDirection = dir;
-    }
+    document.addEventListener('keyup', (e) => {
+      if (e.key === 'ArrowLeft') keysPressed.left = false;
+      if (e.key === 'ArrowRight') keysPressed.right = false;
+      if (e.key === 'ArrowUp') keysPressed.up = false;
+      if (e.key === 'ArrowDown') keysPressed.down = false;
+      updateMoveDirection();
+    });
 
-    function stopMove() {
-      moveDirection = null;
-    }
+    canvas.addEventListener('touchstart', (e) => {
+      const touch = e.touches[0];
+      const dx = touch.clientX - canvas.offsetLeft - player.x;
+      const dy = touch.clientY - canvas.offsetTop - player.y;
+      if (Math.abs(dx) > Math.abs(dy)) moveDirection = dx < 0 ? 'left' : 'right';
+      else moveDirection = dy < 0 ? 'up' : 'down';
+    });
+    canvas.addEventListener('touchend', () => moveDirection = null);
 
-    function moveLeft() {
-      if (player.x > 0) player.x -= player.speed;
-    }
-
-    function moveRight() {
-      if (player.x + player.width < canvas.width) player.x += player.speed;
-    }
-
-    function moveUp() {
-      if (player.y > 0) player.y -= player.speed;
-    }
-
-    function moveDown() {
-      if (player.y + player.height < canvas.height) player.y += player.speed;
-    }
+    function moveLeft() { if (player.x > 0) player.x -= player.speed; }
+    function moveRight() { if (player.x + player.width < canvas.width) player.x += player.speed; }
+    function moveUp() { if (player.y > 0) player.y -= player.speed; }
+    function moveDown() { if (player.y + player.height < canvas.height) player.y += player.speed; }
 
     function startTimers() {
-      bulletInterval = setInterval(() => {
-        const dirs = ['top', 'bottom', 'left', 'right'];
-        for (let i = 0; i < bulletRate; i++) {
-          const dir = dirs[Math.floor(Math.random() * dirs.length)];
-          spawnBullet(dir);
-        }
-      }, 800);
-      shieldInterval = setInterval(spawnShield, 25000);
-      fastBulletInterval = setInterval(spawnFastBullet, 7000);
-      scoreInterval = setInterval(() => { if (!gameOver) scoreDisplay.textContent = `Score: ${score}`; }, 1000);
+      updateHealthUI();
+      scoreInterval = setInterval(() => { if (!gameOver) spawnBullet(); }, 800);
+      setInterval(() => { if (!gameOver) bullets.push({ x: Math.random()*canvas.width, y: 0, width: 20, height: 20, speed: 2, dx: 0, dy: 1, type: 'big' }); }, 10000);
+      setInterval(() => { if (!gameOver) bullets.push({ x: Math.random()*canvas.width, y: 0, width: 10, height: 10, speed: 2, dx: 0, dy: 1, type: 'slow' }); }, 15000);
+      setInterval(() => { if (!gameOver) bullets.push({ x: Math.random()*canvas.width, y: 0, width: 8, height: 8, speed: 8, dx: 0, dy: 1, type: 'fast' }); }, 20000);
       timeInterval = setInterval(() => {
         if (!gameOver) {
           time++;
           timeDisplay.textContent = `Time: ${time}s`;
-          if (time % 10 === 0) bulletRate++;
         }
       }, 1000);
     }
 
-    startButton.addEventListener('click', () => {
-      startButton.style.display = 'none';
-      startTimers();
-      update();
-    });
-
-    document.addEventListener('keydown', movePlayer);
-    document.addEventListener('keyup', () => moveDirection = null);
-  </script>
+    startTimers();
+    update();
+  function startGame() {
+  document.getElementById('introScreen').style.display = 'none';
+  startTimers();
+  update();
+}
+</script>
 </body>
 </html>
