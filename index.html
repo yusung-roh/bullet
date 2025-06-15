@@ -1,6 +1,8 @@
 <!DOCTYPE html>
+<!-- ⚠️ 이 HTML 문서는 UTF-8 문자 인코딩을 명시하여 이모지나 한글이 깨지지 않도록 합니다. -->
 <html lang="en">
 <head>
+  <meta charset="UTF-8">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bullet Dodge Game</title>
@@ -216,17 +218,19 @@
     }
 
     function restartGame() {
-      player.x = canvas.width / 2 - 10;
-      player.y = canvas.height / 2 - 10;
-      bullets = [];
-      gameOver = false;
-      health = 3;
-      updateHealthUI();
-      score = 0;
-      time = 0;
-      scoreDisplay.textContent = 'Score: 0';
-      timeDisplay.textContent = 'Time: 0s';
-      gameOverScreen.style.display = 'none';
+  player.x = canvas.width / 2 - 10;
+  player.y = canvas.height / 2 - 10;
+  bullets = [];
+  gameOver = false;
+  health = 3;
+  updateHealthUI();
+  score = 0;
+  time = 0;
+  scoreDisplay.textContent = 'Score: 0';
+  timeDisplay.textContent = 'Time: 0s';
+  gameOverScreen.style.display = 'none';
+  startTimers();
+  update();
       // 게임 설명 화면이 닫히고 나면 시작되도록 변경
     }
 
